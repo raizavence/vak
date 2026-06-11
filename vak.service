@@ -1,0 +1,15 @@
+[Unit]
+Description=Vāk — Gestora do blog de Raíza Venceslau
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/vak
+ExecStart=/root/vak/venv/bin/python3 bot.py
+Restart=always
+RestartSec=10
+EnvironmentFile=/root/vak/.env
+
+[Install]
+WantedBy=multi-user.target
