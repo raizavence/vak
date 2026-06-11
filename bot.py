@@ -40,11 +40,16 @@ TIMEZONE        = ZoneInfo("America/Sao_Paulo")
 DB_PATH         = os.path.join(os.path.dirname(__file__), "memoria.db")
 
 CONFIRMAR = {"sim","s","yes","ok","pode","vai","bora","claro","isso","manda","positivo","confirmar","confirma","confirmado","com certeza","é isso","isso mesmo","quero","aceito","aceitar","aceita","tá","ta","blz","beleza","certo","correto"}
-CANCELAR  = {"não","nao","n","no","nope","cancela","cancelar","cancelado","para","pare","stop","deixa","esquece","esquecer","desistir","desisto"}
+CANCELAR  = {"não","nao","n","no","cancela","cancelar","cancelado"}
 
 def match(text: str, variants: set) -> bool:
     tokens = text.lower().strip().rstrip(".,!?").split()
     return bool(variants.intersection(tokens)) or any(v in text.lower() for v in variants if " " in v)
+
+def match_exact(text: str, variants: set) -> bool:
+    # Ação destrutiva: só dispara se a mensagem inteira for uma das variantes
+    # — espelhado em shishya/bot.py (match_exact)
+    return text.lower().strip().rstrip(".,!? ") in variants
 
 # ─── BANCO ────────────────────────────────────────────────────────────────────
 
@@ -211,18 +216,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Há publicação pendente — aguardando sim/não
     if pendente_raw:
-        if match(text, CANCELAR):
-            pendente = json.loads(pendente_raw) if pendente_raw else {}
-            semana_id = pendente.get("semana_id")
-            if semana_id:
-                marcar_shishya_descartado(int(semana_id))
-            set_config("pendente", "")
-            await update.message.reply_text("Cancelado.")
+        if match_exact(text, CANCELAR):
+            if get_config("cancelar_confirmar") == "1":
+                pendente = json.loads(pendente_raw)
+                semana_id = pendente.get("semana_id")
+                if semana_id:
+                    marcar_shishya_descartado(int(semana_id))
+                set_config("pendente", "")
+                set_config("cancelar_confirmar", "")
+                await update.message.reply_text("Cancelado.")
+            else:
+                set_config("cancelar_confirmar", "1")
+                await update.message.reply_text("Tem certeza? Responda *não* ou *cancelar* de novo para confirmar — isso é irreversível.", parse_mode="Markdown")
             return
 
         if match(text, CONFIRMAR):
             pendente = json.loads(pendente_raw)
             set_config("pendente", "")
+            set_config("cancelar_confirmar", "")
             try:
                 post = criar_post(
                     titulo=pendente["titulo"],
