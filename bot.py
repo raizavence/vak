@@ -177,6 +177,20 @@ def marcar_shishya_publicado(semana_id: int, post_url: str):
     except Exception as e:
         logger.error(f"Erro ao atualizar banco do Shishya: {e}")
 
+def montar_pendente(row: dict) -> tuple:
+    # CONTRATO pendente: {titulo, subtitulo, conteudo, semana_id} — espelhado em shishya/bot.py:804
+    draft = json.loads(row["rascunho"])
+    payload = {
+        "titulo": draft.get("titulo", ""),
+        "subtitulo": draft.get("subtitulo", ""),
+        "conteudo": draft.get("conteudo", ""),
+        "semana_id": row["id"],
+    }
+    preview = f"*{payload['titulo']}*"
+    if payload["subtitulo"]:
+        preview += f"\n_{payload['subtitulo']}_"
+    return payload, preview
+
 # ─── HANDLERS ─────────────────────────────────────────────────────────────────
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -230,19 +244,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Verifica fila do Shishya
     rascunhos = listar_rascunhos_shishya()
     if rascunhos:
-        r = rascunhos[0]
-        draft = json.loads(r["rascunho"])
-        set_config("pendente", json.dumps({
-            "titulo": draft.get("titulo", ""),
-            "subtitulo": draft.get("subtitulo", ""),
-            "conteudo": draft.get("conteudo", ""),
-            "semana_id": r["id"],
-        }, ensure_ascii=False))
-        titulo = draft.get("titulo", "")
-        subtitulo = draft.get("subtitulo", "")
-        preview = f"*{titulo}*"
-        if subtitulo:
-            preview += f"\n_{subtitulo}_"
+        payload, preview = montar_pendente(rascunhos[0])
+        set_config("pendente", json.dumps(payload, ensure_ascii=False))
         await update.message.reply_text(
             f"{preview}\n\nVocê quer fazer essa publicação?",
             parse_mode="Markdown"
@@ -262,19 +265,8 @@ async def cmd_notificar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not rascunhos:
         await update.message.reply_text("Nenhum rascunho autorizado encontrado.")
         return
-    r = rascunhos[0]
-    draft = json.loads(r["rascunho"])
-    set_config("pendente", json.dumps({
-        "titulo": draft.get("titulo", ""),
-        "subtitulo": draft.get("subtitulo", ""),
-        "conteudo": draft.get("conteudo", ""),
-        "semana_id": r["id"],
-    }, ensure_ascii=False))
-    titulo = draft.get("titulo", "")
-    subtitulo = draft.get("subtitulo", "")
-    preview = f"*{titulo}*"
-    if subtitulo:
-        preview += f"\n_{subtitulo}_"
+    payload, preview = montar_pendente(rascunhos[0])
+    set_config("pendente", json.dumps(payload, ensure_ascii=False))
     await update.message.reply_text(
         f"{preview}\n\nVocê quer fazer essa publicação?",
         parse_mode="Markdown"
