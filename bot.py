@@ -124,11 +124,15 @@ def texto_para_lexical(texto: str) -> str:
     paragrafos = [p.strip() for p in texto.split("\n\n") if p.strip()]
     if not paragrafos:
         paragrafos = [p.strip() for p in texto.split("\n") if p.strip()]
-    children = [
-        {"children": [{"detail": 0, "format": 0, "mode": "normal", "style": "", "text": p, "type": "text", "version": 1}],
-         "direction": "ltr", "format": "", "indent": 0, "type": "paragraph", "version": 1}
-        for p in paragrafos
-    ]
+    children = []
+    for p in paragrafos:
+        if p in ("<hr>", "---", "***"):
+            children.append({"type": "horizontalrule", "version": 1})
+        else:
+            children.append({
+                "children": [{"detail": 0, "format": 0, "mode": "normal", "style": "", "text": p, "type": "text", "version": 1}],
+                "direction": "ltr", "format": "", "indent": 0, "type": "paragraph", "version": 1,
+            })
     return json.dumps({"root": {"children": children, "direction": "ltr", "format": "", "indent": 0, "type": "root", "version": 1}})
 
 def criar_post(titulo: str, conteudo: str, subtitulo: str = "") -> dict:
@@ -150,7 +154,7 @@ def listar_rascunhos_shishya() -> list:
         conn = sqlite3.connect(SHISHYA_DB_PATH)
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
-            "SELECT id, rascunho FROM semanas WHERE estado = 'autorizado' ORDER BY id DESC LIMIT 1"
+            "SELECT id, rascunho, rascunho_revisado FROM semanas WHERE estado = 'autorizado' ORDER BY id DESC LIMIT 1"
         ).fetchall()
         conn.close()
         return [dict(r) for r in rows]
@@ -184,11 +188,12 @@ def marcar_shishya_publicado(semana_id: int, post_url: str):
 
 def montar_pendente(row: dict) -> tuple:
     # CONTRATO pendente: {titulo, subtitulo, conteudo, semana_id} — espelhado em shishya/bot.py:804
+    # T9: usa rascunho_revisado para conteudo quando disponível; titulo/subtitulo sempre do original
     draft = json.loads(row["rascunho"])
     payload = {
         "titulo": draft.get("titulo", ""),
         "subtitulo": draft.get("subtitulo", ""),
-        "conteudo": draft.get("conteudo", ""),
+        "conteudo": row.get("rascunho_revisado") or draft.get("conteudo", ""),
         "semana_id": row["id"],
     }
     preview = f"*{payload['titulo']}*"
