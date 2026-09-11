@@ -79,3 +79,13 @@ SHISHYA_DB_PATH=/root/shishya/memoria.db
 - [[project-shishya]] — gera e autoriza o conteúdo
 - [[project-ghost-blog]] — o blog onde tudo é publicado
 - [[project-jiva]] — bot separado, logística do grupo de estudos
+
+---
+
+## 2026-09-11 — Fix: `texto_para_lexical()` não renderizava links markdown
+
+Post "A sede que sempre esteve comigo" (gerado pelo Shri Shankara, agente do professor Jonas, fora do fluxo Shishya→Vāk) tinha links em `[texto](url)` no meio do texto. `texto_para_lexical()` só sabia gerar parágrafos de texto puro — os colchetes apareceriam literalmente no post, nunca tinha sido notado porque nenhum post anterior tinha link.
+
+**Fix:** nova função `_texto_nodes()` faz parse de `[texto](url)` dentro de cada parágrafo via regex e monta os nós `link`/`text` do Lexical corretamente intercalados (`MARKDOWN_LINK_RE`). `texto_para_lexical()` agora chama `_texto_nodes(p)` em vez de gerar um nó de texto único por parágrafo. Retrocompatível — parágrafo sem link continua saindo como um nó de texto simples.
+
+**Publicação desse post:** como não veio autorizado via `semanas` (não passou pelo Shishya), publiquei direto via Ghost Admin API — mas como **rascunho** (`status: draft`) primeiro, pra Raíza conferir a formatação real no tema (link de preview `{GHOST_URL}/p/{uuid}/`) antes de aprovar. Só virou `published` depois do "sim" explícito dela, com várias rodadas de edição no meio (ela relendo e mandando trechos pra trocar, uma PUT por rodada usando `updated_at` atual pra evitar conflito otimista da API). Pode valer como padrão pra qualquer texto que chegue pronto fora do fluxo Shishya.

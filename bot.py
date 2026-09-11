@@ -7,6 +7,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import sqlite3
 import time
 import urllib.error
@@ -118,6 +119,29 @@ def ghost_request(method, path, body=None):
     except urllib.error.HTTPError as e:
         raise RuntimeError(f"Ghost API {e.code}: {e.read().decode()}")
 
+MARKDOWN_LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+
+
+def _texto_nodes(texto: str) -> list:
+    """Divide um trecho em nós de texto/link do Lexical, parseando [texto](url)."""
+    nodes = []
+    pos = 0
+    for m in MARKDOWN_LINK_RE.finditer(texto):
+        antes = texto[pos:m.start()]
+        if antes:
+            nodes.append({"detail": 0, "format": 0, "mode": "normal", "style": "", "text": antes, "type": "text", "version": 1})
+        nodes.append({
+            "children": [{"detail": 0, "format": 0, "mode": "normal", "style": "", "text": m.group(1), "type": "text", "version": 1}],
+            "direction": "ltr", "format": "", "indent": 0, "type": "link", "version": 1,
+            "rel": None, "target": None, "title": None, "url": m.group(2),
+        })
+        pos = m.end()
+    resto = texto[pos:]
+    if resto or not nodes:
+        nodes.append({"detail": 0, "format": 0, "mode": "normal", "style": "", "text": resto, "type": "text", "version": 1})
+    return nodes
+
+
 def texto_para_lexical(texto: str) -> str:
     if not texto:
         return json.dumps({"root": {"children": [], "direction": None, "format": "", "indent": 0, "type": "root", "version": 1}})
@@ -132,7 +156,7 @@ def texto_para_lexical(texto: str) -> str:
             children.append({"type": "horizontalrule", "version": 1})
         else:
             children.append({
-                "children": [{"detail": 0, "format": 0, "mode": "normal", "style": "", "text": p, "type": "text", "version": 1}],
+                "children": _texto_nodes(p),
                 "direction": "ltr", "format": "", "indent": 0, "type": "paragraph", "version": 1,
             })
     return json.dumps({"root": {"children": children, "direction": "ltr", "format": "", "indent": 0, "type": "root", "version": 1}})
